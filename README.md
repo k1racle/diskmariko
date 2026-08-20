@@ -1,56 +1,29 @@
 # Simple Drive для Portainer
 
-Готовое личное файловое хранилище на базе
-[File Browser Quantum](https://github.com/gtsteffaniak/filebrowser).
+Простой личный файловый диск на базе File Browser Quantum с отдельными публичными ссылками для людей и ИИ.
 
-Веб-интерфейс уже собран внутрь Docker-образа `gtstef/filebrowser:stable`.
-Этот репозиторий намеренно небольшой: в нём находится только проверенная
-конфигурация развёртывания, а не копия исходного кода File Browser.
+В интерфейсе доступны загрузка, скачивание, создание папок, удаление, перемещение и переименование файлов. Для каждого публичного ресурса отображаются две кнопки:
 
-Возможности веб-интерфейса:
+- значок буфера — копирует обычную ссылку, открывающую веб-интерфейс;
+- значок робота — копирует ссылку для ИИ, возвращающую машиночитаемый JSON со списком файлов.
 
-- загрузка и скачивание файлов;
-- создание, переименование и удаление папок;
-- переименование, перемещение и удаление файлов;
-- просмотр изображений, PDF, видео и текста;
-- публичные ссылки на файлы и папки;
-- прямые ссылки для `curl`, API и нейросетей.
+Кнопка для ИИ отключена у ссылок с паролем, запретом анонимного доступа и ссылок только для загрузки: внешняя нейросеть не сможет открыть их без авторизации.
 
-## Схема
+## Подготовка сервера
 
-```text
-Интернет
-   │
-   ▼
-Внешний NGINX (HTTPS, disk.mariko-mail.ru)
-   │
-   ▼
-IP Docker-сервера:2340
-   │
-   ▼
-File Browser Quantum
-```
-
-## Подготовка Docker-сервера
-
-Создайте каталог для пользовательских файлов:
+Файлы пользователей хранятся вне контейнера:
 
 ```bash
 sudo mkdir -p /opt/simple-drive/files
 sudo chown -R 1000:1000 /opt/simple-drive/files
 ```
 
-Пользователь `filebrowser` в стабильном образе работает с UID/GID `1000:1000`.
-При каждом развёртывании одноразовый контейнер `simple-drive-permissions`
-автоматически проверяет владельца каталога перед запуском File Browser.
-Разрешите входящие соединения от внешнего NGINX к TCP-порту `2340`.
+При каждом запуске вспомогательный контейнер также исправляет владельца каталога. Данные аккаунта, настройки и созданные публичные ссылки сохраняются в Docker volume `simple-drive_filebrowser_state`.
 
-## Деплой через Portainer
+## Деплой через Portainer из GitHub
 
-1. Откройте **Stacks → Add stack**.
-2. Укажите имя `simple-drive`.
-3. Выберите **Git repository**.
-4. Заполните:
+1. Откройте **Stacks → Add stack → Git repository**.
+2. Укажите:
 
    ```text
    Repository URL:        https://github.com/k1racle/diskmariko.git
@@ -58,106 +31,72 @@ sudo chown -R 1000:1000 /opt/simple-drive/files
    Compose path:          compose.yaml
    ```
 
-5. Добавьте Environment variables:
+3. Добавьте переменные окружения:
 
    ```env
    DATA_DIR=/opt/simple-drive/files
    APP_PORT=2340
    BIND_ADDRESS=0.0.0.0
-   FILEBROWSER_IMAGE=gtstef/filebrowser:stable
+   FILEBROWSER_IMAGE=simple-drive-filebrowser:1.5.2-mariko
+   FILEBROWSER_VERSION=v1.5.2-stable
    ```
 
-6. Нажмите **Deploy the stack**.
+4. Нажмите **Deploy the stack**. При первом запуске Portainer соберёт собственный Docker-образ из закреплённой версии File Browser; это займёт несколько минут.
+5. После запуска проверьте `http://IP_СЕРВЕРА:2340`.
 
-Stack больше не монтирует `config.yaml` из Git-каталога Portainer. Это устраняет
-ошибку `not a directory`, возникающую, когда Portainer и Docker daemon по-разному
-видят путь `/data/compose/...`.
+Первый вход: логин `admin`, пароль `admin`. Сразу смените пароль.
 
-После запуска проверьте напрямую:
+При обновлении Git Stack не удаляйте volume, иначе будут потеряны настройки и публичные ссылки. Пользовательские файлы в `DATA_DIR` от volume не зависят.
 
-```text
-http://IP_DOCKER_СЕРВЕРА:2340
-```
+## Nginx Proxy Manager
 
-Первый вход:
+Proxy Host для `disk.mariko-mail.ru` должен вести на:
 
 ```text
-Логин:  admin
-Пароль: admin
+Scheme:          http
+Forward Host/IP: IP Docker-сервера
+Forward Port:    2340
 ```
 
-Сразу замените пароль на уникальный.
-
-## Настройка внешнего NGINX
-
-NGINX должен проксировать `disk.mariko-mail.ru` на Docker-сервер:
+Включите SSL и Websockets Support. В **Custom Nginx Configuration** достаточно:
 
 ```nginx
-server {
-    listen 80;
-    server_name disk.mariko-mail.ru;
-
-    location / {
-        proxy_pass http://IP_DOCKER_СЕРВЕРА:2340;
-        proxy_http_version 1.1;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-
-        client_max_body_size 0;
-        proxy_request_buffering off;
-        proxy_read_timeout 3600s;
-        proxy_send_timeout 3600s;
-    }
-}
+client_max_body_size 0;
+proxy_request_buffering off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
 ```
 
-HTTPS-сертификат устанавливается на внешнем NGINX. Если сертификат уже выпускает
-Certbot или панель управления NGINX, используйте их обычный способ и оставьте
-upstream как `http://IP_DOCKER_СЕРВЕРА:2340`.
+Не добавляйте `rewrite` или отдельный `location` для `/public/share/`: этот адрес должен открывать обычный интерфейс. JSON-ссылку новая кнопка формирует отдельно через `/public/api/resources`.
 
-Не добавляйте перед File Browser дополнительный Basic Auth или OAuth: они
-перекроют доступ к публичным ссылкам.
+## Как пользоваться двумя ссылками
 
-## Ссылка для нейросети
+1. Войдите в диск, выберите файл или папку и нажмите **Share**.
+2. Создайте публичную ссылку без пароля и с разрешённым анонимным доступом.
+3. В таблице ссылок нажмите:
+   - кнопку с буфером — для человека;
+   - кнопку с роботом — для ChatGPT или другого ИИ.
 
-1. Войдите в File Browser.
-2. Выберите файл и нажмите **Share**.
-3. Создайте ссылку без пароля.
-4. Скопируйте именно **Direct download link**.
-5. Проверьте её извне:
-
-   ```bash
-   curl -I -L "https://disk.mariko-mail.ru/ПРЯМАЯ_ССЫЛКА"
-   ```
-
-Ответ должен быть HTTP `200`, без перехода на страницу входа.
-
-## Хранение и резервные копии
+Пример обычной ссылки:
 
 ```text
-/opt/simple-drive/files         — пользовательские файлы
-simple-drive_filebrowser_state  — Docker volume с аккаунтом, базой и ссылками
+https://disk.mariko-mail.ru/public/share/TW9x6EJQEW8XluYfswsRcw
 ```
 
-Для полного резервного копирования сохраняйте каталог с файлами и Docker volume
-`simple-drive_filebrowser_state`. Перед копированием остановите Stack.
+Пример ссылки для ИИ:
+
+```text
+https://disk.mariko-mail.ru/public/api/resources?hash=TW9x6EJQEW8XluYfswsRcw&path=%2F
+```
+
+ИИ-ссылка возвращает содержимое открытой папки в JSON. Для вложенной папки клиент может повторить запрос с её путём в параметре `path`. Доступны только объекты внутри расшаренного ресурса.
 
 ## Диагностика
 
 Логи: **Portainer → Containers → simple-drive → Logs**.
 
-Частые проблемы:
-
-- `permission denied` — выполните `chown -R 1000:1000 /opt/simple-drive/files`;
-- `simple-drive-permissions` завершился с ошибкой — файловая система запрещает
-  `chown` (часто это NFS/SMB); права нужно настроить на стороне файлового сервера;
-- порт `2340` недоступен — проверьте firewall и маршрут между NGINX и Docker;
-- домен открывает не тот сайт — проверьте `server_name` и DNS;
-- большая загрузка обрывается — проверьте `client_max_body_size 0` и таймауты;
-- нейросеть получает страницу входа — передана Share page вместо Direct link.
+- `permission denied` — проверьте владельца `DATA_DIR`: нужен UID/GID `1000:1000`;
+- сборка не скачивает исходники — Docker/BuildKit сервера должен иметь исходящий доступ к GitHub, npm и Go modules;
+- обычная ссылка показывает JSON — удалите старое правило Nginx для `/public/share/`;
+- кнопка с роботом неактивна — ссылка защищена паролем, запрещает анонимный доступ или предназначена только для загрузки;
+- большие загрузки обрываются — проверьте `client_max_body_size`, `proxy_read_timeout` и `proxy_send_timeout` в Nginx Proxy Manager.

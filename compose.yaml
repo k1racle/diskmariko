@@ -1,8 +1,16 @@
 name: simple-drive
 
+x-filebrowser-image: &filebrowser-image
+  image: ${FILEBROWSER_IMAGE:-simple-drive-filebrowser:1.5.2-mariko}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      FILEBROWSER_VERSION: ${FILEBROWSER_VERSION:-v1.5.2-stable}
+
 services:
   permissions:
-    image: ${FILEBROWSER_IMAGE:-gtstef/filebrowser:stable}
+    <<: *filebrowser-image
     container_name: simple-drive-permissions
     user: "0:0"
     entrypoint:
@@ -15,7 +23,7 @@ services:
       - "${DATA_DIR:-/opt/simple-drive/files}:/srv"
 
   filebrowser:
-    image: ${FILEBROWSER_IMAGE:-gtstef/filebrowser:stable}
+    <<: *filebrowser-image
     container_name: simple-drive
     restart: unless-stopped
     depends_on:
