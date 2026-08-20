@@ -1,0 +1,17 @@
+name: simple-drive
+
+services:
+  filebrowser:
+    image: ${FILEBROWSER_IMAGE:-gtstef/filebrowser:stable}
+    container_name: simple-drive
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
+    volumes:
+      - "${DATA_DIR:-/opt/simple-drive/files}:/srv"
+      - "${STATE_DIR:-/opt/simple-drive/state}:/home/filebrowser/database"
+      - "./config.yaml:/home/filebrowser/config.yaml:ro"
+      - filebrowser_cache:/home/filebrowser/tmp
+
+volumes:
+  filebrowser_cache:

@@ -1,0 +1,10 @@
+.env
+.idea/
+.vscode/
+*.log
+
+# Never commit user files or the application database.
+files/
+state/
+data/
+database/

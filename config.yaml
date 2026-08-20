@@ -1,0 +1,26 @@
+server:
+  port: 80
+  baseURL: "/"
+  database: "/home/filebrowser/database/filebrowser.db"
+  cacheDir: "/home/filebrowser/tmp"
+  sources:
+    - name: "files"
+      path: "/srv"
+      config:
+        defaultEnabled: true
+
+auth:
+  signup: false
+  tokenExpirationHours: 12
+  methods:
+    password:
+      enabled: true
+      minLength: 12
+
+frontend:
+  name: "Simple Drive"
+  disableDefaultLinks: true
+
+userDefaults:
+  darkMode: true
+  viewMode: "list"
