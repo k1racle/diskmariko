@@ -18,7 +18,7 @@
 
 | Файл | Когда использовать | Адрес |
 | --- | --- | --- |
-| `compose.caddy.yaml` | Рекомендуемый production-вариант с доменом и автоматическим HTTPS | `https://files.example.com` |
+| `compose.caddy.yaml` | Рекомендуемый production-вариант с доменом и автоматическим HTTPS | `https://disk.mariko-mail.ru` |
 | `compose.yaml` | Локальная сеть или уже установленный Nginx Proxy Manager/Traefik | `http://SERVER_IP:8080` |
 
 Для получения файла внешней нейросетью нужен публичный домен с корректным HTTPS.
@@ -28,7 +28,7 @@
 
 ### 1. Подготовить домен и сервер
 
-1. Создайте DNS-запись `A` для домена, например `files.example.com`, указывающую
+1. Создайте DNS-запись `A` для домена `disk.mariko-mail.ru`, указывающую
    на публичный IP сервера. Если используется IPv6, добавьте корректную `AAAA`.
 2. Пробросьте TCP-порты `80` и `443` на Docker-сервер. Для HTTP/3 можно также
    открыть UDP `443`.
@@ -52,7 +52,7 @@
 6. Добавьте переменные окружения:
 
    ```env
-   DOMAIN=files.example.com
+   DOMAIN=disk.mariko-mail.ru
    DATA_DIR=/opt/simple-drive/files
    STATE_DIR=/opt/simple-drive/state
    FILEBROWSER_IMAGE=gtstef/filebrowser:stable
@@ -65,7 +65,7 @@ Caddy автоматически запросит и будет продлева
 
 ### 3. Первый вход
 
-Откройте `https://files.example.com` и войдите:
+Откройте `https://disk.mariko-mail.ru` и войдите:
 
 ```text
 Логин:  admin
@@ -121,7 +121,7 @@ BIND_ADDRESS=127.0.0.1
 Проверьте прямую ссылку с компьютера вне домашней сети:
 
 ```bash
-curl -I -L "https://files.example.com/ПРЯМАЯ_ССЫЛКА"
+curl -I -L "https://disk.mariko-mail.ru/ПРЯМАЯ_ССЫЛКА"
 ```
 
 Корректный результат — HTTP `200` без перенаправления на страницу входа. Наличие

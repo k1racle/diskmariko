@@ -1,6 +1,7 @@
 server:
   port: 80
   baseURL: "/"
+  externalUrl: "https://disk.mariko-mail.ru"
   database: "/home/filebrowser/database/filebrowser.db"
   cacheDir: "/home/filebrowser/tmp"
   sources:

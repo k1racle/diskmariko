@@ -22,7 +22,7 @@ services:
     depends_on:
       - filebrowser
     environment:
-      DOMAIN: "${DOMAIN:?Set DOMAIN, for example files.example.com}"
+      DOMAIN: "${DOMAIN:-disk.mariko-mail.ru}"
     ports:
       - "80:80"
       - "443:443"
