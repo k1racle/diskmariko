@@ -41,6 +41,8 @@ sudo chown -R 1000:1000 /opt/simple-drive/files
 ```
 
 Пользователь `filebrowser` в стабильном образе работает с UID/GID `1000:1000`.
+При каждом развёртывании одноразовый контейнер `simple-drive-permissions`
+автоматически проверяет владельца каталога перед запуском File Browser.
 Разрешите входящие соединения от внешнего NGINX к TCP-порту `2340`.
 
 ## Деплой через Portainer
@@ -153,6 +155,8 @@ simple-drive_filebrowser_state  — Docker volume с аккаунтом, баз�
 Частые проблемы:
 
 - `permission denied` — выполните `chown -R 1000:1000 /opt/simple-drive/files`;
+- `simple-drive-permissions` завершился с ошибкой — файловая система запрещает
+  `chown` (часто это NFS/SMB); права нужно настроить на стороне файлового сервера;
 - порт `2340` недоступен — проверьте firewall и маршрут между NGINX и Docker;
 - домен открывает не тот сайт — проверьте `server_name` и DNS;
 - большая загрузка обрывается — проверьте `client_max_body_size 0` и таймауты;
