@@ -1,167 +1,159 @@
 # Simple Drive для Portainer
 
-Минимальное личное файловое хранилище на базе
-[File Browser Quantum](https://github.com/gtsteffaniak/filebrowser). Один владелец
-управляет файлами через веб-интерфейс, а выбранные файлы и папки можно отдавать
-по публичным ссылкам без регистрации.
+Готовое личное файловое хранилище на базе
+[File Browser Quantum](https://github.com/gtsteffaniak/filebrowser).
 
-Возможности:
+Веб-интерфейс уже собран внутрь Docker-образа `gtstef/filebrowser:stable`.
+Этот репозиторий намеренно небольшой: в нём находится только проверенная
+конфигурация развёртывания, а не копия исходного кода File Browser.
+
+Возможности веб-интерфейса:
 
 - загрузка и скачивание файлов;
-- создание, переименование, перемещение и удаление файлов и папок;
-- просмотр изображений, PDF, видео и текстовых файлов;
-- публичные ссылки с ограничением срока действия;
-- прямая ссылка на скачивание, пригодная для `curl`, API и нейросетей;
-- постоянное хранение файлов и базы настроек вне контейнера.
+- создание, переименование и удаление папок;
+- переименование, перемещение и удаление файлов;
+- просмотр изображений, PDF, видео и текста;
+- публичные ссылки на файлы и папки;
+- прямые ссылки для `curl`, API и нейросетей.
 
-## Какой Compose выбрать
+## Схема
 
-| Файл | Когда использовать | Адрес |
-| --- | --- | --- |
-| `compose.caddy.yaml` | Рекомендуемый production-вариант с доменом и автоматическим HTTPS | `https://disk.mariko-mail.ru` |
-| `compose.yaml` | Локальная сеть или уже установленный Nginx Proxy Manager/Traefik | `http://SERVER_IP:8080` |
+```text
+Интернет
+   │
+   ▼
+Внешний NGINX (HTTPS, disk.mariko-mail.ru)
+   │
+   ▼
+IP Docker-сервера:2340
+   │
+   ▼
+File Browser Quantum
+```
 
-Для получения файла внешней нейросетью нужен публичный домен с корректным HTTPS.
-Адрес из локальной сети (`192.168.x.x`, `10.x.x.x`) нейросеть открыть не сможет.
+## Подготовка Docker-сервера
 
-## Вариант 1: production с автоматическим HTTPS
+Создайте каталог для пользовательских файлов:
 
-### 1. Подготовить домен и сервер
+```bash
+sudo mkdir -p /opt/simple-drive/files
+sudo chown -R 1000:1000 /opt/simple-drive/files
+```
 
-1. Создайте DNS-запись `A` для домена `disk.mariko-mail.ru`, указывающую
-   на публичный IP сервера. Если используется IPv6, добавьте корректную `AAAA`.
-2. Пробросьте TCP-порты `80` и `443` на Docker-сервер. Для HTTP/3 можно также
-   открыть UDP `443`.
-3. Убедитесь, что эти порты не заняты другим reverse proxy.
-4. На Docker-сервере создайте каталоги:
+Пользователь `filebrowser` в стабильном образе работает с UID/GID `1000:1000`.
+Разрешите входящие соединения от внешнего NGINX к TCP-порту `2340`.
 
-   ```bash
-   sudo mkdir -p /opt/simple-drive/files /opt/simple-drive/state
-   ```
-
-Каталог `files` содержит пользовательские файлы, а `state` — базу пользователей,
-настроек и публичных ссылок. Оба каталога нужно включить в резервное копирование.
-
-### 2. Создать Stack в Portainer
+## Деплой через Portainer
 
 1. Откройте **Stacks → Add stack**.
-2. Укажите имя, например `simple-drive`.
+2. Укажите имя `simple-drive`.
 3. Выберите **Git repository**.
-4. Заполните URL репозитория и ветку `refs/heads/main`.
-5. В поле **Compose path** укажите `compose.caddy.yaml`.
-6. Добавьте переменные окружения:
+4. Заполните:
+
+   ```text
+   Repository URL:        https://github.com/k1racle/diskmariko.git
+   Repository reference: refs/heads/main
+   Compose path:          compose.yaml
+   ```
+
+5. Добавьте Environment variables:
 
    ```env
-   DOMAIN=disk.mariko-mail.ru
    DATA_DIR=/opt/simple-drive/files
-   STATE_DIR=/opt/simple-drive/state
+   APP_PORT=2340
+   BIND_ADDRESS=0.0.0.0
    FILEBROWSER_IMAGE=gtstef/filebrowser:stable
    ```
 
-7. Нажмите **Deploy the stack**.
+6. Нажмите **Deploy the stack**.
 
-Caddy автоматически запросит и будет продлевать TLS-сертификат. Первый выпуск
-сертификата может занять около минуты.
+Stack больше не монтирует `config.yaml` из Git-каталога Portainer. Это устраняет
+ошибку `not a directory`, возникающую, когда Portainer и Docker daemon по-разному
+видят путь `/data/compose/...`.
 
-### 3. Первый вход
+После запуска проверьте напрямую:
 
-Откройте `https://disk.mariko-mail.ru` и войдите:
+```text
+http://IP_DOCKER_СЕРВЕРА:2340
+```
+
+Первый вход:
 
 ```text
 Логин:  admin
 Пароль: admin
 ```
 
-Сразу после входа замените пароль на уникальный длиной не менее 12 символов.
-Регистрация новых пользователей в `config.yaml` отключена.
+Сразу замените пароль на уникальный.
 
-## Вариант 2: HTTP или существующий reverse proxy
+## Настройка внешнего NGINX
 
-В Portainer укажите Compose path `compose.yaml` и переменные:
+NGINX должен проксировать `disk.mariko-mail.ru` на Docker-сервер:
 
-```env
-DATA_DIR=/opt/simple-drive/files
-STATE_DIR=/opt/simple-drive/state
-APP_PORT=8080
-BIND_ADDRESS=0.0.0.0
-FILEBROWSER_IMAGE=gtstef/filebrowser:stable
+```nginx
+server {
+    listen 80;
+    server_name disk.mariko-mail.ru;
+
+    location / {
+        proxy_pass http://IP_DOCKER_СЕРВЕРА:2340;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        client_max_body_size 0;
+        proxy_request_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
 ```
 
-После деплоя интерфейс будет доступен по адресу:
+HTTPS-сертификат устанавливается на внешнем NGINX. Если сертификат уже выпускает
+Certbot или панель управления NGINX, используйте их обычный способ и оставьте
+upstream как `http://IP_DOCKER_СЕРВЕРА:2340`.
 
-```text
-http://SERVER_IP:8080
-```
+Не добавляйте перед File Browser дополнительный Basic Auth или OAuth: они
+перекроют доступ к публичным ссылкам.
 
-Если используется Nginx Proxy Manager, создайте Proxy Host на
-`http://DOCKER_SERVER_IP:8080`, включите WebSockets и выпустите SSL-сертификат.
-Не добавляйте поверх File Browser дополнительный Basic Auth или OAuth, иначе
-публичные ссылки перестанут быть доступны внешним сервисам.
-
-Для доступа только через reverse proxy можно установить:
-
-```env
-BIND_ADDRESS=127.0.0.1
-```
-
-Это подходит, только если proxy работает на том же Docker-сервере и обращается
-к опубликованному порту хоста.
-
-## Как создать ссылку для человека или нейросети
+## Ссылка для нейросети
 
 1. Войдите в File Browser.
-2. Выберите файл или папку и нажмите **Share**.
-3. Укажите срок действия, если он нужен.
-4. Для человека можно скопировать обычную share-ссылку.
-5. Для нейросети или API скопируйте именно **Direct download link**.
+2. Выберите файл и нажмите **Share**.
+3. Создайте ссылку без пароля.
+4. Скопируйте именно **Direct download link**.
+5. Проверьте её извне:
 
-Для нейросети не устанавливайте пароль на ссылку: большинство сервисов не умеют
-показывать форму пароля или передавать cookie.
+   ```bash
+   curl -I -L "https://disk.mariko-mail.ru/ПРЯМАЯ_ССЫЛКА"
+   ```
 
-Проверьте прямую ссылку с компьютера вне домашней сети:
+Ответ должен быть HTTP `200`, без перехода на страницу входа.
 
-```bash
-curl -I -L "https://disk.mariko-mail.ru/ПРЯМАЯ_ССЫЛКА"
-```
-
-Корректный результат — HTTP `200` без перенаправления на страницу входа. Наличие
-публичной ссылки ещё не гарантирует, что конкретная нейросеть принимает данный
-тип или размер файла, но серверная авторизация ей больше не потребуется.
-
-## Обновление
-
-В Portainer откройте Stack и выполните **Pull and redeploy**. Используется канал
-`stable`; beta/dev-теги для рабочего хранилища не рекомендуются.
-
-Перед обновлением сделайте резервную копию `DATA_DIR` и `STATE_DIR`.
-
-## Резервное копирование
-
-Надёжнее остановить Stack на время копирования, затем сохранить оба каталога:
+## Хранение и резервные копии
 
 ```text
-/opt/simple-drive/files
-/opt/simple-drive/state
+/opt/simple-drive/files         — пользовательские файлы
+simple-drive_filebrowser_state  — Docker volume с аккаунтом, базой и ссылками
 ```
 
-Файлы без каталога `state` останутся на месте, но потеряются аккаунт, настройки и
-созданные публичные ссылки.
-
-## Удаление публичной ссылки
-
-Откройте список Shares в File Browser и удалите соответствующую ссылку. Простая
-смена имени исходного файла не должна рассматриваться как способ отзыва доступа.
+Для полного резервного копирования сохраняйте каталог с файлами и Docker volume
+`simple-drive_filebrowser_state`. Перед копированием остановите Stack.
 
 ## Диагностика
 
-Посмотреть журналы в Portainer можно через **Containers → simple-drive → Logs** и
-**Containers → simple-drive-proxy → Logs**.
+Логи: **Portainer → Containers → simple-drive → Logs**.
 
-Частые причины проблем:
+Частые проблемы:
 
-- домен ещё не указывает на сервер;
-- закрыты или заняты порты `80/443`;
-- Docker не имеет права записи в `DATA_DIR` или `STATE_DIR`;
-- перед публичной ссылкой включён внешний OAuth/Basic Auth;
-- нейросети передана страница Share вместо Direct download link;
-- используется локальный IP или самоподписанный TLS-сертификат.
+- `permission denied` — выполните `chown -R 1000:1000 /opt/simple-drive/files`;
+- порт `2340` недоступен — проверьте firewall и маршрут между NGINX и Docker;
+- домен открывает не тот сайт — проверьте `server_name` и DNS;
+- большая загрузка обрывается — проверьте `client_max_body_size 0` и таймауты;
+- нейросеть получает страницу входа — передана Share page вместо Direct link.

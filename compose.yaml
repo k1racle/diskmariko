@@ -5,13 +5,13 @@ services:
     image: ${FILEBROWSER_IMAGE:-gtstef/filebrowser:stable}
     container_name: simple-drive
     restart: unless-stopped
+    environment:
+      FILEBROWSER_DATABASE: /home/filebrowser/data/database.db
     ports:
-      - "${BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-2340}:80"
     volumes:
       - "${DATA_DIR:-/opt/simple-drive/files}:/srv"
-      - "${STATE_DIR:-/opt/simple-drive/state}:/home/filebrowser/database"
-      - "./config.yaml:/home/filebrowser/config.yaml:ro"
-      - filebrowser_cache:/home/filebrowser/tmp
+      - filebrowser_state:/home/filebrowser/data
 
 volumes:
-  filebrowser_cache:
+  filebrowser_state:
